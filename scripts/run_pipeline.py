@@ -2,17 +2,26 @@
 """
 End-to-end Live/Dead Cell Classification Pipeline
 
-Input: Directory with images following naming convention:
-  - *.0.jpg (or .png) = brightfield
-  - *.1.jpg (or .png) = green fluorescence (AO stain = live)
-  - *.2.jpg (or .png) = red fluorescence (PI stain = dead)
+Supports two modes:
+  - caco2: Requires brightfield + fluorescence images (.0/.1/.2 naming)
+  - ipsc:  Brightfield-only with Cellpose segmentation
+
+Input (caco2 mode):
+  Directory with images following naming convention:
+    - *.0.jpg (or .png) = brightfield
+    - *.1.jpg (or .png) = green fluorescence (AO stain = live)
+    - *.2.jpg (or .png) = red fluorescence (PI stain = dead)
+
+Input (ipsc mode):
+  Directory with brightfield images (any .jpg/.png/.tif files)
 
 Output:
   - CSV with cell locations and predictions
   - Annotated images with colored bounding boxes (optional)
 
 Usage:
-  python run_pipeline.py --input_dir <path> --output_dir <path> [--visualize]
+  python run_pipeline.py --dataset caco2 --input_dir <path> --output_dir <path> [--visualize]
+  python run_pipeline.py --dataset ipsc --input_dir <path> --output_dir <path> [--visualize]
 """
 
 import os
@@ -29,26 +38,46 @@ from torchvision import transforms, models
 from scipy import ndimage
 
 
+# === DATASET CONFIGURATION ===
+DATASET_CONFIG = {
+    'caco2': {
+        'model_path': 'live_dead_classifier_caco2.pth',
+        'crop_size': 32,
+        'resize': 64,
+        'description': 'Caco2 mode (requires .0/.1/.2 image triplets)'
+    },
+    'ipsc': {
+        'model_path': 'live_dead_classifier_ipsc.pth',
+        'crop_size': 50,  # Larger crop for iPSC cells
+        'resize': 100,
+        'description': 'iPSC mode (brightfield-only with Cellpose segmentation)'
+    }
+}
+
+
 class LiveDeadPipeline:
     """End-to-end pipeline for live/dead cell classification."""
 
-    def __init__(self, model_path, device=None):
+    def __init__(self, model_path, device=None, crop_size=32, resize=64):
         """
         Initialize the pipeline.
 
         Args:
-            model_path: Path to trained live_dead_classifier.pth
+            model_path: Path to trained classifier .pth file
             device: torch device (auto-detected if None)
+            crop_size: Size of cell crops to extract
+            resize: Size to resize crops for model input
         """
         self.device = device or torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.model = self._load_model(model_path)
+        self.crop_size = crop_size
+        self.resize = resize
         # Must match training transforms (ImageNet normalization for pretrained weights)
         self.transform = transforms.Compose([
-            transforms.Resize((64, 64)),
+            transforms.Resize((resize, resize)),
             transforms.ToTensor(),
             transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
         ])
-        self.crop_size = 32
         self.classes = ['dead', 'live']  # Must match training order (alphabetical)
 
     def _load_model(self, model_path):
@@ -159,7 +188,7 @@ class LiveDeadPipeline:
 
     def process_image_set(self, brightfield_path, green_path, red_path):
         """
-        Process a set of images (brightfield + fluorescence).
+        Process a set of images (brightfield + fluorescence) - CACO2 MODE.
 
         Args:
             brightfield_path: Path to brightfield image
@@ -201,33 +230,52 @@ class LiveDeadPipeline:
 
         return results
 
-    def process_brightfield_only(self, brightfield_path, mask_path=None):
+    def process_brightfield_only(self, brightfield_path, use_cellpose=False):
         """
-        Process brightfield image only (no ground truth).
-        Uses provided mask or requires cells to be pre-segmented.
+        Process brightfield image only (no ground truth) - IPSC MODE.
 
         Args:
             brightfield_path: Path to brightfield image
-            mask_path: Optional path to pre-computed cell mask
+            use_cellpose: Whether to use Cellpose for segmentation
 
         Returns:
             List of dicts with cell info
         """
         brightfield = np.array(Image.open(brightfield_path))
 
-        if mask_path:
-            mask = np.array(Image.open(mask_path).convert('L'))
-            _, mask = cv2.threshold(mask, 127, 255, cv2.THRESH_BINARY)
+        # Convert to grayscale if needed
+        if len(brightfield.shape) == 3:
+            gray = cv2.cvtColor(brightfield, cv2.COLOR_RGB2GRAY)
         else:
-            # Simple edge-based detection as fallback
-            gray = cv2.cvtColor(brightfield, cv2.COLOR_RGB2GRAY) if len(brightfield.shape) == 3 else brightfield
-            mask = cv2.adaptiveThreshold(gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY_INV, 11, 2)
+            gray = brightfield
 
-        centroids = self.find_cell_centroids(mask)
+        if use_cellpose:
+            # Use Cellpose for better cell segmentation
+            try:
+                from cellpose import models as cp_models
+                cellpose_model = cp_models.Cellpose(model_type='cyto2', gpu=torch.cuda.is_available())
+                masks, _, _, _ = cellpose_model.eval(gray, diameter=None, channels=[0, 0])
+
+                # Find centroids from Cellpose masks
+                centroids = []
+                for i in range(1, masks.max() + 1):
+                    ys, xs = np.where(masks == i)
+                    if len(xs) > 0:
+                        centroids.append((int(xs.mean()), int(ys.mean())))
+            except ImportError:
+                print("Warning: Cellpose not installed. Using adaptive thresholding.")
+                mask = cv2.adaptiveThreshold(gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
+                                            cv2.THRESH_BINARY_INV, 11, 2)
+                centroids = self.find_cell_centroids(mask)
+        else:
+            # Simple adaptive thresholding as fallback
+            mask = cv2.adaptiveThreshold(gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
+                                        cv2.THRESH_BINARY_INV, 11, 2)
+            centroids = self.find_cell_centroids(mask)
 
         results = []
         for cell_id, centroid in enumerate(centroids, 1):
-            crop = self.extract_crop(brightfield, centroid)
+            crop = self.extract_crop(gray, centroid)
             if crop is None:
                 continue
 
@@ -270,9 +318,9 @@ class LiveDeadPipeline:
         cv2.imwrite(str(output_path), image)
 
 
-def find_image_sets(input_dir):
+def find_image_sets_caco2(input_dir):
     """
-    Find sets of images following the naming convention.
+    Find sets of images following the .0/.1/.2 naming convention (CACO2 MODE).
 
     Returns:
         List of (base_name, brightfield_path, green_path, red_path) tuples
@@ -300,14 +348,43 @@ def find_image_sets(input_dir):
     return complete_sets
 
 
+def find_brightfield_images(input_dir):
+    """
+    Find all brightfield images in directory (IPSC MODE).
+
+    Returns:
+        List of (image_name, image_path) tuples
+    """
+    input_dir = Path(input_dir)
+    images = []
+
+    for ext in ['*.jpg', '*.png', '*.tif', '*.tiff']:
+        for img_path in input_dir.glob(ext):
+            # Skip files with .0/.1/.2 naming (those are caco2 format)
+            name = img_path.stem
+            if '.' in name:
+                _, suffix = name.rsplit('.', 1)
+                if suffix in ['0', '1', '2']:
+                    continue
+            images.append((img_path.stem, img_path))
+
+    return images
+
+
 def main():
     parser = argparse.ArgumentParser(description='Live/Dead Cell Classification Pipeline')
+    parser.add_argument('--dataset', choices=['caco2', 'ipsc'], default='caco2',
+                        help='Dataset/mode to use (default: caco2)')
     parser.add_argument('--input_dir', required=True, help='Directory containing input images')
     parser.add_argument('--output_dir', required=True, help='Directory for output files')
-    parser.add_argument('--model', default='live_dead_classifier.pth', help='Path to trained model')
+    parser.add_argument('--model', default=None, help='Path to trained model (auto-selected if not specified)')
     parser.add_argument('--visualize', action='store_true', help='Generate annotated images')
-    parser.add_argument('--threshold', type=int, default=30, help='Fluorescence threshold')
+    parser.add_argument('--threshold', type=int, default=30, help='Fluorescence threshold (caco2 mode)')
+    parser.add_argument('--cellpose', action='store_true', help='Use Cellpose for segmentation (ipsc mode)')
     args = parser.parse_args()
+
+    # Get dataset config
+    config = DATASET_CONFIG[args.dataset]
 
     # Setup paths
     input_dir = Path(args.input_dir)
@@ -315,41 +392,85 @@ def main():
     output_dir.mkdir(parents=True, exist_ok=True)
 
     # Find model
-    model_path = Path(args.model)
+    model_path = Path(args.model) if args.model else Path(config['model_path'])
     if not model_path.exists():
         # Try relative to script directory
         script_dir = Path(__file__).parent.parent
-        model_path = script_dir / args.model
+        model_path = script_dir / config['model_path']
     if not model_path.exists():
-        print(f"Error: Model not found at {args.model}")
-        sys.exit(1)
+        # Try legacy name (without dataset suffix)
+        legacy_path = Path("live_dead_classifier.pth")
+        if legacy_path.exists():
+            model_path = legacy_path
+            print(f"Using legacy model: {model_path}")
+        else:
+            print(f"Error: Model not found. Expected: {config['model_path']}")
+            print(f"Run 'python scripts/train_classifier.py --dataset {args.dataset}' first.")
+            sys.exit(1)
 
-    print(f"Loading model from {model_path}...", flush=True)
-    pipeline = LiveDeadPipeline(str(model_path))
+    print("=" * 60)
+    print(f"Live/Dead Cell Classification Pipeline")
+    print("=" * 60)
+    print(f"Mode:        {args.dataset} ({config['description']})")
+    print(f"Model:       {model_path}")
+    print(f"Input:       {input_dir}")
+    print(f"Output:      {output_dir}")
+    print("=" * 60)
 
-    # Find image sets
-    image_sets = find_image_sets(input_dir)
-    print(f"Found {len(image_sets)} complete image sets", flush=True)
+    # Initialize pipeline
+    pipeline = LiveDeadPipeline(
+        str(model_path),
+        crop_size=config['crop_size'],
+        resize=config['resize']
+    )
 
-    if not image_sets:
-        print("No complete image sets found. Expected naming: <name>.0.jpg, <name>.1.jpg, <name>.2.jpg")
-        sys.exit(1)
-
-    # Process each set
     all_results = []
-    for base_name, bf_path, green_path, red_path in image_sets:
-        print(f"Processing {base_name}...", flush=True)
 
-        results = pipeline.process_image_set(bf_path, green_path, red_path)
+    if args.dataset == 'caco2':
+        # CACO2 MODE: Requires .0/.1/.2 image triplets
+        image_sets = find_image_sets_caco2(input_dir)
+        print(f"Found {len(image_sets)} complete image sets", flush=True)
 
-        for r in results:
-            r['image_name'] = base_name
-        all_results.extend(results)
+        if not image_sets:
+            print("No complete image sets found. Expected naming: <name>.0.jpg, <name>.1.jpg, <name>.2.jpg")
+            sys.exit(1)
 
-        # Visualize if requested
-        if args.visualize and results:
-            vis_path = output_dir / f"{base_name}_annotated.png"
-            pipeline.visualize_results(bf_path, results, vis_path)
+        for base_name, bf_path, green_path, red_path in image_sets:
+            print(f"Processing {base_name}...", flush=True)
+
+            results = pipeline.process_image_set(bf_path, green_path, red_path)
+
+            for r in results:
+                r['image_name'] = base_name
+            all_results.extend(results)
+
+            # Visualize if requested
+            if args.visualize and results:
+                vis_path = output_dir / f"{base_name}_annotated.png"
+                pipeline.visualize_results(bf_path, results, vis_path)
+
+    else:
+        # IPSC MODE: Brightfield-only images
+        images = find_brightfield_images(input_dir)
+        print(f"Found {len(images)} brightfield images", flush=True)
+
+        if not images:
+            print("No brightfield images found in input directory.")
+            sys.exit(1)
+
+        for image_name, image_path in images:
+            print(f"Processing {image_name}...", flush=True)
+
+            results = pipeline.process_brightfield_only(image_path, use_cellpose=args.cellpose)
+
+            for r in results:
+                r['image_name'] = image_name
+            all_results.extend(results)
+
+            # Visualize if requested
+            if args.visualize and results:
+                vis_path = output_dir / f"{image_name}_annotated.png"
+                pipeline.visualize_results(image_path, results, vis_path)
 
     # Save results
     df = pd.DataFrame(all_results)
@@ -363,7 +484,7 @@ def main():
 
     if 'ground_truth' in df.columns and df['ground_truth'].notna().any():
         correct = (df['prediction'] == df['ground_truth']).sum()
-        total = len(df)
+        total = len(df[df['ground_truth'].notna()])
         print(f"Accuracy: {correct}/{total} ({100*correct/total:.1f}%)")
 
         print(f"\nPrediction breakdown:")
