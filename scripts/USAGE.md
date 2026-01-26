@@ -1,5 +1,32 @@
 # Live/Dead Cell Classifier - Usage Guide
 
+## What is Cellpose Plus?
+
+**Cellpose** is a deep learning model that automatically finds and outlines individual cells in microscopy images (called segmentation).
+
+**Cellpose Plus** is our team's extension that adds analysis features on top of Cellpose. This classifier is one component that determines whether cells are **alive or dead**.
+
+### How It Works
+
+```
+Microscopy Image → [Cellpose Segmentation] → Cell Crops → [CNN Classifier] → Live/Dead Labels
+```
+
+1. **Segmentation**: Cellpose (or fallback thresholding) locates each cell
+2. **Crop Extraction**: Each cell is cropped from the original image
+3. **Classification**: A trained CNN examines each crop and predicts live or dead
+4. **Output**: Annotated images with colored boxes (green=live, red=dead) + CSV results
+
+### Cellpose Integration
+
+In **iPSC mode**, you can enable Cellpose segmentation:
+- **GUI**: Check "Use Cellpose for segmentation"
+- **CLI**: Add `--cellpose` flag
+
+Without Cellpose, the pipeline uses adaptive thresholding as a simpler fallback.
+
+---
+
 ## GUI (Recommended)
 
 The GUI supports both caco2 and iPSC datasets.

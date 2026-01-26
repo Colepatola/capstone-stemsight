@@ -1,7 +1,33 @@
 # Meeting Notes - Live/Dead Cell Classification
 
+## What is Cellpose?
+Cellpose is a deep learning model that finds and outlines individual cells in microscopy images. Think of it like drawing a boundary around each cell automatically. This process is called **segmentation**.
+
+- Input: A microscopy image with many cells
+- Output: A mask showing where each individual cell is located
+
 ## What is Cellpose Plus?
-Cellpose Plus is an extension of Cellpose, which is a deep learning tool for cell segmentation. Our team is building additional analysis features on top of it. My role is developing the live/dead cell classification component.
+Cellpose Plus is our team's extension that adds **analysis features** on top of Cellpose's segmentation. Instead of just finding cells, we want to answer questions about them:
+
+- Are they alive or dead?
+- What type of cell is it?
+- How healthy does it look?
+
+**My contribution:** I built the **live/dead classification** component.
+
+## How Cellpose Integrates With My Work
+The pipeline works in stages:
+
+```
+Raw Image → [Cellpose Segmentation] → Individual Cell Crops → [My Classifier] → Live/Dead Labels
+```
+
+1. **Cellpose** finds each cell in the image and creates a mask
+2. **My code** extracts a small crop of each cell from the original image
+3. **My CNN classifier** looks at each crop and predicts: live or dead
+4. **Output** shows the original image with colored boxes (green=live, red=dead)
+
+In the GUI, there's a checkbox "Use Cellpose for segmentation" that enables Cellpose. Without it, I use simpler image processing (adaptive thresholding) as a fallback.
 
 ## Problem I'm Solving
 Researchers need to know if cells are alive or dead in microscopy images. Traditional methods require fluorescent dyes (AO/PI staining) which can be expensive and time-consuming. My pipeline learns to classify cells using just brightfield images - no special staining needed after training.
@@ -51,13 +77,20 @@ Researchers need to know if cells are alive or dead in microscopy images. Tradit
 - All code pushed to `cole-cellposeplus` branch on team repo
 
 ## Connection to Team
-My classifier integrates with the main Cellpose Plus pipeline:
-1. Cellpose segments cells in an image
-2. My model takes each segmented cell
-3. Classifies as live or dead
-4. Returns results for downstream analysis
+My classifier is one module in the larger Cellpose Plus system:
 
-A teammate asked me to extract the image processing components so they can plug it into their pipeline. I've structured the code to make this possible.
+```
+[Cellpose Core]     →  Segments cells (finds boundaries)
+[My Classifier]     →  Determines if cells are live or dead
+[Other Teammates]   →  Additional analysis features
+```
+
+The workflow:
+1. **Cellpose** (or fallback segmentation) finds cell locations
+2. **My classifier** takes each cell crop and predicts live/dead
+3. **Results** feed into the team's larger analysis pipeline
+
+A teammate asked me to extract the image processing components (masks, crops, centroids) so they can plug it into their work. The code is modular to support this.
 
 ## Next Steps
 - Integrate with teammate's pipeline
