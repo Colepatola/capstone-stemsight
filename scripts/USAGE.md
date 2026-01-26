@@ -29,12 +29,21 @@ python live_dead_gui.py
 4. Click **Run Classification**
 5. Should see ~90% accuracy on ~1,895 cells
 
-### Test iPSC Mode
+### Test iPSC Mode (Quick Test - Recommended)
 1. Set **Dataset Mode** → `ipsc`
-2. **Input** → `data/ipsc_cell_crops/live/` (to test live cells)
+2. **Input** → `data/test_ipsc_small/` (40 images: 20 live + 20 dead)
+3. **Output** → `data/test_gui_ipsc` (or any folder)
+4. Click **Run Classification**
+5. Should see ~50% live, ~50% dead (balanced test set)
+6. Runs in seconds instead of minutes
+
+### Test iPSC Mode (Full Dataset)
+1. Set **Dataset Mode** → `ipsc`
+2. **Input** → `data/ipsc_cell_crops/live/` (1,365 images)
 3. **Output** → `data/test_gui_ipsc` (or any folder)
 4. Click **Run Classification**
 5. Most predictions should be "live" (validating the model works)
+6. Note: Takes longer due to large dataset size
 
 ---
 
@@ -146,5 +155,6 @@ No arguments. Reads from `data/ethz_iPSC/`, outputs to `data/ipsc_cell_crops/`.
 | Folder | Mode | Description |
 |--------|------|-------------|
 | `data/caco2_dataset/Set_1_Cam_AO_PI_19_02_16` | caco2 | 34 image sets with .0/.1/.2 files |
+| `data/test_ipsc_small/` | ipsc | 40 images (20 live + 20 dead) - quick testing |
 | `data/ipsc_cell_crops/live/` | ipsc | 1,365 live cell images |
 | `data/ipsc_cell_crops/dead/` | ipsc | 1,461 dead cell images |
