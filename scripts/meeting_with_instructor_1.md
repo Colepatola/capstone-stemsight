@@ -49,21 +49,33 @@ Main features:
 - Also works from command line if you want to process lots of images
 - Makes pictures with boxes around cells so you can see the results
 
-## The Datasets I Used
+## The Datasets Im Working With
 
-### Caco2 Dataset
+### Caco2 Dataset (working well)
 
-This dataset has microscope images with special dyes. Green dye shows live cells, red dye shows dead cells. I used those colors to label the cells, then trained my model on just the regular brightfield images (no colors).
+This dataset has microscope images of colon cancer cells with special dyes. Green dye shows live cells, red dye shows dead cells. I used those colors to label the cells, then trained my model on just the regular brightfield images (no colors).
 
-Got about 90% accuracy on this one.
+This one is working pretty well. Getting about 90% accuracy which is solid for this type of task.
 
-### iPSC Dataset (ethz)
+### iPSC Dataset (still figuring this out)
 
-This one came from ETH Zurich. The cells were already cut out and labeled by researchers. Live cells are in a folder called Cell, dead ones are in DyingCell.
+This one is trickier. The iPSC data came from ETH Zurich and the cells were already cut out and labeled by researchers. Live cells are in a folder called Cell, dead ones are in DyingCell.
 
 The images had 5 channels so I had to pull out just the brightfield channel to use.
 
-Got about 100% accuracy because live and dead cells look really different in this dataset.
+Im still working on getting this to work as well as the caco2 dataset. The iPSC cells look different from caco2 cells so I might need to tweak some things. Right now Im testing different approaches to see what works best.
+
+## Current Status
+
+Working:
+- Caco2 pipeline is solid, 90% accuracy
+- GUI works and can switch between dataset modes
+- Training and inference scripts are set up
+
+Still in progress:
+- iPSC classification needs more work
+- Trying to figure out the best way to handle the different cell types
+- May need to adjust the model or training process for iPSC
 
 ## Files I Made or Changed
 
@@ -71,13 +83,6 @@ Got about 100% accuracy because live and dead cells look really different in thi
 - train_classifier.py - trains the neural network, I added a flag so you can pick which dataset to train on
 - run_pipeline.py - runs the whole thing end to end, also has the dataset flag
 - live_dead_gui.py - the GUI with a dropdown to switch between datasets
-
-## Results
-
-- Caco2: 90.1% accuracy on 1,895 cells
-- iPSC: 100% accuracy on 2,826 cells
-- GUI works with both datasets
-- Code is on the cole-cellposeplus branch
 
 ## How This Connects to the Team
 
@@ -91,6 +96,7 @@ One teammate asked me to pull out some of the image processing pieces (the masks
 
 ## Whats Next
 
+- Keep working on the iPSC classification to get better results
 - Help teammate plug my code into their pipeline
-- Test on new iPSC images from the sponsor (Defined Biosciences)
-- Maybe add more categories besides just live and dead
+- Test on new iPSC images from the sponsor (Defined Biosciences) when we get them
+- Maybe add more categories besides just live and dead once the basics are solid
