@@ -1,98 +1,96 @@
 # Meeting Notes - Live/Dead Cell Classification
 
 ## What is Cellpose?
-Cellpose is a deep learning model that finds and outlines individual cells in microscopy images. Think of it like drawing a boundary around each cell automatically. This process is called **segmentation**.
 
-- Input: A microscopy image with many cells
-- Output: A mask showing where each individual cell is located
+Cellpose is a tool that finds cells in microscope images. It draws outlines around each cell so you can work with them one at a time. This is called segmentation.
+
+You give it an image with a bunch of cells, and it gives you back a map showing where each cell is.
 
 ## What is Cellpose Plus?
-Cellpose Plus is our team's extension that adds **analysis features** on top of Cellpose's segmentation. Instead of just finding cells, we want to answer questions about them:
 
-- Are they alive or dead?
-- What type of cell is it?
-- How healthy does it look?
+Cellpose Plus is what our team is building on top of Cellpose. Cellpose finds the cells, but we want to do more than that. We want to answer questions like:
 
-**My contribution:** I built the **live/dead classification** component.
+- Is this cell alive or dead?
+- What kind of cell is it?
+- Is it healthy?
 
-## How Cellpose Integrates With My Work
-The pipeline works in stages:
+My part of the project is the live/dead classification piece.
 
-```
-Raw Image → [Cellpose Segmentation] → Individual Cell Crops → [My Classifier] → Live/Dead Labels
-```
+## How My Work Fits With Cellpose
 
-1. **Cellpose** finds each cell in the image and creates a mask
-2. **My code** extracts a small crop of each cell from the original image
-3. **My CNN classifier** looks at each crop and predicts: live or dead
-4. **Output** shows the original image with colored boxes (green=live, red=dead)
+Here is how the whole thing works:
 
-In the GUI, there's a checkbox "Use Cellpose for segmentation" that enables Cellpose. Without it, I use simpler image processing (adaptive thresholding) as a fallback.
+1. Start with a microscope image that has lots of cells
+2. Cellpose finds each cell and marks where it is
+3. My code cuts out a small picture of each cell
+4. My classifier looks at each cell picture and guesses if its live or dead
+5. The output is the original image with boxes drawn around each cell (green = live, red = dead)
 
-## Problem I'm Solving
-Researchers need to know if cells are alive or dead in microscopy images. Traditional methods require fluorescent dyes (AO/PI staining) which can be expensive and time-consuming. My pipeline learns to classify cells using just brightfield images - no special staining needed after training.
+In the GUI I made, theres a checkbox to turn on Cellpose. If you dont use it, the code uses a simpler method to find cells instead.
+
+## The Problem Im Solving
+
+Scientists need to know if cells are alive or dead when they look at microscope images. The normal way to do this uses special dyes that glow different colors for live and dead cells. But those dyes cost money and take time to use.
+
+My code learns what live and dead cells look like from training data. Then it can classify new cells without needing the dyes.
 
 ## What I Built
 
-### The Pipeline
-1. **Data Preparation** - Extract labeled cell crops from training data
-2. **Training** - ResNet-18 CNN learns live vs dead patterns from brightfield
-3. **Inference** - New images go through segmentation → crop extraction → classification
-4. **Output** - CSV with predictions + annotated images (green boxes = live, red = dead)
+The pipeline has a few main parts:
 
-### Key Features
-- Supports two datasets via `--dataset` flag (caco2 or ipsc)
-- GUI application for easy use (dropdown to switch modes)
-- Command-line interface for batch processing
-- Generates visual output with bounding boxes
+1. Data prep - get labeled cell images ready for training
+2. Training - teach a neural network to tell live from dead
+3. Running on new images - find cells, cut them out, classify each one
+4. Output - a CSV file with all the predictions plus images with colored boxes showing which cells are live or dead
 
-## Datasets I Worked With
+Main features:
+- Works with two different datasets (caco2 and ipsc)
+- Has a GUI so you can just click buttons instead of typing commands
+- Also works from command line if you want to process lots of images
+- Makes pictures with boxes around cells so you can see the results
+
+## The Datasets I Used
 
 ### Caco2 Dataset
-- **Source**: Fluorescence microscopy images with AO/PI staining
-- **Labels**: Green channel (AO) marks live cells, red channel (PI) marks dead cells
-- **Process**: Generated masks from fluorescence → extracted 32x32 crops from brightfield
-- **Result**: ~90% accuracy
 
-### ethz_iPSC Dataset
-- **Source**: Pre-cropped cell images from ETH Zurich research collection
-- **Labels**: Manually labeled by experts (Cell folder = live, DyingCell folder = dead)
-- **Process**: Extracted brightfield channel from 5-channel TIFFs → 100x100 crops
-- **Result**: ~100% accuracy (morphologically distinct classes)
+This dataset has microscope images with special dyes. Green dye shows live cells, red dye shows dead cells. I used those colors to label the cells, then trained my model on just the regular brightfield images (no colors).
 
-## Files I Created/Modified
+Got about 90% accuracy on this one.
 
-| File | What It Does |
-|------|--------------|
-| `convert_ipsc_dataset.py` | Extracts brightfield from iPSC TIFFs, organizes into live/dead folders |
-| `train_classifier.py` | Trains the CNN - added `--dataset` flag for caco2/ipsc |
-| `run_pipeline.py` | End-to-end inference - added `--dataset` flag for both modes |
-| `live_dead_gui.py` | GUI with dataset mode selector dropdown |
+### iPSC Dataset (ethz)
 
-## Evidence of Work
-- Both pipelines trained and tested
+This one came from ETH Zurich. The cells were already cut out and labeled by researchers. Live cells are in a folder called Cell, dead ones are in DyingCell.
+
+The images had 5 channels so I had to pull out just the brightfield channel to use.
+
+Got about 100% accuracy because live and dead cells look really different in this dataset.
+
+## Files I Made or Changed
+
+- convert_ipsc_dataset.py - pulls out the brightfield channel from the iPSC images and sorts them into live/dead folders
+- train_classifier.py - trains the neural network, I added a flag so you can pick which dataset to train on
+- run_pipeline.py - runs the whole thing end to end, also has the dataset flag
+- live_dead_gui.py - the GUI with a dropdown to switch between datasets
+
+## Results
+
 - Caco2: 90.1% accuracy on 1,895 cells
 - iPSC: 100% accuracy on 2,826 cells
-- GUI working with both dataset modes
-- All code pushed to `cole-cellposeplus` branch on team repo
+- GUI works with both datasets
+- Code is on the cole-cellposeplus branch
 
-## Connection to Team
-My classifier is one module in the larger Cellpose Plus system:
+## How This Connects to the Team
 
-```
-[Cellpose Core]     →  Segments cells (finds boundaries)
-[My Classifier]     →  Determines if cells are live or dead
-[Other Teammates]   →  Additional analysis features
-```
+The team is building Cellpose Plus together. Different people work on different parts:
 
-The workflow:
-1. **Cellpose** (or fallback segmentation) finds cell locations
-2. **My classifier** takes each cell crop and predicts live/dead
-3. **Results** feed into the team's larger analysis pipeline
+- Cellpose does the cell finding
+- My code does live/dead classification
+- Other teammates are adding other features
 
-A teammate asked me to extract the image processing components (masks, crops, centroids) so they can plug it into their work. The code is modular to support this.
+One teammate asked me to pull out some of the image processing pieces (the masks and cell locations) so they can use them in their part of the project. The code is set up so thats easy to do.
 
-## Next Steps
-- Integrate with teammate's pipeline
-- Test on new iPSC data from sponsor (Defined Biosciences)
-- Potentially add more cell state classifications beyond live/dead
+## Whats Next
+
+- Help teammate plug my code into their pipeline
+- Test on new iPSC images from the sponsor (Defined Biosciences)
+- Maybe add more categories besides just live and dead
