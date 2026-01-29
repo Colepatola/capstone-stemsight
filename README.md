@@ -1,30 +1,35 @@
 # Live/Dead Cell Classifier
 
-A deep learning tool that classifies cells as **live** or **dead** from microscopy images.
+This tool looks at microscope images of cells and figures out which ones are alive and which ones are dead.
 
-## Overview
+## What It Does
 
-This classifier uses a ResNet-18 CNN to analyze cell images and predict whether each cell is alive or dead. It supports two dataset modes:
+Scientists often need to know if cells are alive or dead when doing experiments. The usual way is to use special dyes that glow different colors, but those cost money and take time. This classifier learns what live and dead cells look like, then can classify new cells without needing dyes.
 
-- **caco2**: Requires fluorescence-labeled images (brightfield + green/red channels)
-- **ipsc**: Brightfield-only images with morphology-based classification
+The basic flow is:
+1. Give it a microscope image with cells
+2. It finds each cell in the image
+3. Cuts out a small picture of each cell
+4. A neural network looks at each one and guesses live or dead
+5. You get back the image with colored boxes (green = live, red = dead) plus a CSV with all the predictions
 
-## Installation
+## Two Modes
 
-```bash
-pip install torch torchvision pillow opencv-python pandas numpy scipy
-pip install pyqt5  # For GUI
-```
+The classifier works with two different types of cell data:
+
+**Caco2 mode** - For images that have fluorescence channels. The green channel shows live cells, red shows dead. Works really well, getting about 90% accuracy.
+
+**iPSC mode** - For brightfield only images. Uses cell shape and texture to make predictions. Still being improved.
 
 ## Quick Start
 
-### GUI (Recommended)
+The easiest way is to use the GUI:
 ```bash
 cd scripts
 python live_dead_gui.py
 ```
 
-### Command Line
+Or run from command line:
 ```bash
 python scripts/run_pipeline.py --dataset ipsc \
     --input_dir "data/test_ipsc_small" \
@@ -32,25 +37,34 @@ python scripts/run_pipeline.py --dataset ipsc \
     --visualize
 ```
 
-## Files
+## Whats in This Repo
 
-- `scripts/` - Main classifier code
-  - `live_dead_gui.py` - GUI application
-  - `run_pipeline.py` - Command line pipeline
-  - `train_classifier.py` - Model training
-  - `USAGE.md` - Detailed usage guide
-- `data/test_ipsc_small/` - Sample test images (20 live + 20 dead)
-- `live_dead_classifier.pth` - Trained model weights
+```
+scripts/
+  live_dead_gui.py      - GUI app with buttons and dropdowns
+  run_pipeline.py       - Command line version
+  train_classifier.py   - Train new models
+  USAGE.md              - Detailed instructions
+
+data/test_ipsc_small/   - Small test set (40 images) for quick testing
+
+live_dead_classifier.pth - Trained model file
+```
+
+## Installation
+
+You need Python with these packages:
+```bash
+pip install torch torchvision pillow opencv-python pandas numpy scipy
+pip install pyqt5  # for the GUI
+```
 
 ## Output
 
-- `classification_results.csv` - Predictions with cell coordinates
-- `*_annotated.png` - Images with colored boxes (green=live, red=dead)
+When you run the classifier you get:
+- `classification_results.csv` - All the predictions with cell coordinates
+- `*_annotated.png` - Images with boxes drawn around cells showing live (green) or dead (red)
 
-## Documentation
+## More Info
 
-See `scripts/USAGE.md` for detailed usage instructions.
-
-## License
-
-GPL v3 - See LICENSE file
+Check out `scripts/USAGE.md` for detailed usage instructions and examples.
