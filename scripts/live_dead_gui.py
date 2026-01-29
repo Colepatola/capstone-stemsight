@@ -3,8 +3,6 @@
 Live/Dead Cell Classification GUI
 
 A standalone GUI for running the live/dead cell classification pipeline.
-Built with PyQt to match cellpose_plus styling.
-
 Supports both caco2 and iPSC datasets.
 
 Usage:

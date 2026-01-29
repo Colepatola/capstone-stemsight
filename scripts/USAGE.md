@@ -1,29 +1,27 @@
 # Live/Dead Cell Classifier - Usage Guide
 
-## What is Cellpose Plus?
+## Overview
 
-**Cellpose** is a deep learning model that automatically finds and outlines individual cells in microscopy images (called segmentation).
-
-**Cellpose Plus** is our team's extension that adds analysis features on top of Cellpose. This classifier is one component that determines whether cells are **alive or dead**.
+This is a standalone tool that classifies cells as **live** or **dead** from microscopy images.
 
 ### How It Works
 
 ```
-Microscopy Image → [Cellpose Segmentation] → Cell Crops → [CNN Classifier] → Live/Dead Labels
+Microscopy Image → [Segmentation] → Cell Crops → [CNN Classifier] → Live/Dead Labels
 ```
 
-1. **Segmentation**: Cellpose (or fallback thresholding) locates each cell
+1. **Segmentation**: Locates each cell using thresholding (or optionally Cellpose)
 2. **Crop Extraction**: Each cell is cropped from the original image
-3. **Classification**: A trained CNN examines each crop and predicts live or dead
+3. **Classification**: A trained ResNet-18 CNN examines each crop and predicts live or dead
 4. **Output**: Annotated images with colored boxes (green=live, red=dead) + CSV results
 
-### Cellpose Integration
+### Segmentation Options
 
-In **iPSC mode**, you can enable Cellpose segmentation:
+The pipeline uses **adaptive thresholding** by default, which works well for most cases.
+
+For iPSC mode, you can optionally enable **Cellpose segmentation** for better accuracy:
 - **GUI**: Check "Use Cellpose for segmentation"
 - **CLI**: Add `--cellpose` flag
-
-Without Cellpose, the pipeline uses adaptive thresholding as a simpler fallback.
 
 ---
 
@@ -33,7 +31,7 @@ The GUI supports both caco2 and iPSC datasets.
 
 ### How to Run
 ```bash
-cd /Users/colepatola/Desktop/ASU/ASU-Year-4/CSE-485/cellpose_plus/scripts
+cd scripts
 python live_dead_gui.py
 ```
 
@@ -78,8 +76,6 @@ python live_dead_gui.py
 
 ### Caco2 Pipeline
 ```bash
-cd /Users/colepatola/Desktop/ASU/ASU-Year-4/CSE-485/cellpose_plus
-
 python scripts/run_pipeline.py --dataset caco2 \
     --input_dir "data/caco2_dataset/Set_1_Cam_AO_PI_19_02_16" \
     --output_dir "data/pipeline_output" \
@@ -88,8 +84,6 @@ python scripts/run_pipeline.py --dataset caco2 \
 
 ### iPSC Pipeline
 ```bash
-cd /Users/colepatola/Desktop/ASU/ASU-Year-4/CSE-485/cellpose_plus
-
 python scripts/run_pipeline.py --dataset ipsc \
     --input_dir "data/ipsc_cell_crops/live" \
     --output_dir "data/ipsc_output" \
