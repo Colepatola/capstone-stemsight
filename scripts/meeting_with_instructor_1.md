@@ -100,3 +100,17 @@ One teammate asked me to pull out some of the image processing pieces (the masks
 - Help teammate plug my code into their pipeline
 - Test on new iPSC images from the sponsor (Defined Biosciences) when we get them
 - Maybe add more categories besides just live and dead once the basics are solid
+
+## Integration TODO List
+
+Things to do before integrating into the final pipeline:
+
+1. **Create a simple API function** - Add a `classify_cells(image_path)` function that can be imported and called directly without needing to use the CLI or GUI
+
+2. **Return structured output** - Make the classifier return a Python dict or dataframe instead of just writing to CSV, so other code can use the results
+
+3. **Package the model loading** - Make it easy to load the model once and classify multiple images without reloading
+
+4. **Document the input/output format** - Write clear docs on what image formats are accepted and what the output looks like
+
+5. **Test with teammates data** - Run the classifier on sample images from the main pipeline to make sure it works with their image format
